@@ -8,6 +8,7 @@ import { StatsDisplay } from '../components/StatBar';
 import { EventCard } from '../components/EventCard';
 import { Button } from '../components/Button';
 import { Sparkles, AlertCircle } from 'lucide-react';
+import { useSound } from '../hooks/useSound';
 
 interface GamePlayScreenProps {
   gameState: GameState;
@@ -20,6 +21,7 @@ export const GamePlayScreen = ({
   onUpdateState,
   onGameOver,
 }: GamePlayScreenProps) => {
+  const { playSound } = useSound();
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showRandomEvent, setShowRandomEvent] = useState(false);
   const [currentRandomEvent, setCurrentRandomEvent] = useState<any>(null);
@@ -41,9 +43,11 @@ export const GamePlayScreen = ({
       if (randomEvent) {
         setCurrentRandomEvent(randomEvent);
         setShowRandomEvent(true);
+        // 播放事件音效
+        playSound('event');
       }
     }
-  }, [gameState.currentRound]);
+  }, [gameState.currentRound, playSound]);
 
   // 如果没有当前事件（游戏结束），显示加载状态
   if (!currentEvent) {
@@ -105,6 +109,8 @@ export const GamePlayScreen = ({
     // 记录新成就
     if (unlockedAchievements.length > 0) {
       setNewAchievements(unlockedAchievements.map((ach) => ach.name));
+      // 播放成功音效
+      playSound('success');
       setTimeout(() => setNewAchievements([]), 3000);
     }
 
@@ -163,6 +169,8 @@ export const GamePlayScreen = ({
     // 记录新成就
     if (unlockedAchievements.length > 0) {
       setNewAchievements(unlockedAchievements.map((ach) => ach.name));
+      // 播放成功音效
+      playSound('success');
       setTimeout(() => setNewAchievements([]), 3000);
     }
 

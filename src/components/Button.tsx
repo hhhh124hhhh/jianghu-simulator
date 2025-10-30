@@ -1,4 +1,5 @@
 import React from 'react';
+import { useSound } from '../hooks/useSound';
 
 interface ButtonProps {
   variant?: 'primary' | 'secondary' | 'text';
@@ -17,6 +18,8 @@ export const Button = ({
   disabled = false,
   className = '',
 }: ButtonProps) => {
+  const { playSound } = useSound();
+  
   const baseClasses =
     'font-semibold transition-all duration-250 ease-out disabled:opacity-50 disabled:cursor-not-allowed';
 
@@ -34,9 +37,14 @@ export const Button = ({
     lg: 'h-14 px-8 text-lg rounded-md',
   };
 
+  const handleClick = () => {
+    playSound('click');
+    onClick?.();
+  };
+
   return (
     <button
-      onClick={onClick}
+      onClick={handleClick}
       disabled={disabled}
       className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
     >
@@ -64,9 +72,16 @@ export const OptionButton = ({
   children,
   className = '',
 }: OptionButtonProps) => {
+  const { playSound } = useSound();
+  
+  const handleClick = () => {
+    playSound('click');
+    onClick();
+  };
+
   return (
     <button
-      onClick={onClick}
+      onClick={handleClick}
       disabled={disabled}
       className={`
         w-full min-h-20 p-6 rounded-lg text-left
