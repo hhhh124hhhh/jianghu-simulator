@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(claude:*)",
+      "WebFetch(domain:reactjs.org)",
+      "WebFetch(domain:legacy.reactjs.org)",
+      "WebFetch(domain:react.dev)",
+      "Bash(npm run dev:*)",
+      "WebFetch(domain:localhost)",
+      "Bash(pnpm run dev:*)",
+      "Bash(curl:*)",
+      "Bash(npx chrome-devtools-mcp@latest:*)",
+      "Bash(where:*)",
+      "Bash(env:*)",
+      "Bash(chmod:*)",
+      "Bash(./test-mcp-connection.sh:*)",
+      "Bash(bash:*)",
+      "Bash(\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --remote-debugging-port=9222 --user-data-dir=C:tempchrome-debug http://localhost:5173)",
+      "Bash(dir \"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\")",
+      "Bash(\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --remote-debugging-port=9222 --user-data-dir=%TEMP%chrome-debug --new-window http://localhost:5173)",
+      "Bash(npm run lint)",
+      "Bash(npm run build:*)"
+    ],
+    "deny": [],
+    "ask": [],
+    "defaultMode": "acceptEdits",
+    "additionalDirectories": [
+      "C:\\Users\\chwwf",
+      "F:\\f\\person\\3-数字化集锦\\jianghu-simulator"
+    ]
+  }
+}
