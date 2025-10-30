@@ -15,6 +15,7 @@ import { QuestionnaireScreen } from './pages/QuestionnaireScreen';
 import { GamePlayScreen } from './pages/GamePlayScreen';
 import { ResultScreen } from './pages/ResultScreen';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { SoundToggle } from './components/SoundToggle';
 
 function App() {
   const [gamePhase, setGamePhase] = useState<GamePhase>('start');
@@ -99,6 +100,9 @@ function App() {
 
   return (
     <div className="min-h-screen bg-background-near font-body text-text-primary antialiased">
+      {/* 音效开关 - 在所有页面都显示 */}
+      <SoundToggle />
+      
       {gamePhase === 'start' && (
         <StartScreen
           onStart={handleStartNewGame}
