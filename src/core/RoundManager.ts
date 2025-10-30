@@ -194,7 +194,7 @@ export class RoundManager {
   }
 
   /**
-   * 获取主事件（支持NPC事件插入）
+   * 获取主事件（支持NPC事件插入和分支事件）
    */
   private getMainEvent(round: number): GameEvent | null {
     // 首先检查是否有NPC事件触发
@@ -203,9 +203,149 @@ export class RoundManager {
       return npcEvent;
     }
     
-    // 如果没有NPC事件，返回常规事件
+    // 检查是否满足分支事件条件
+    const branchEvent = this.checkBranchEvents(round);
+    if (branchEvent) {
+      console.log(`分支事件触发 (第${round}轮): ${branchEvent.title}`);
+      return branchEvent;
+    }
+    
+    // 如果没有特殊事件，返回常规事件
     const event = this.eventSystem.getEvent(round + 1); // 事件ID从1开始
     return event || null;
+  }
+
+  /**
+   * 检查分支事件条件
+   */
+  private checkBranchEvents(round: number): GameEvent | null {
+    const player = this.gameState.getPlayer();
+    const justiceScore = player.storyFlags.justicePath;
+    const round2Choice = player.storyFlags.keyChoices[2]; // 第2轮选择（1-based索引）
+    const round8Choice = player.storyFlags.keyChoices[8]; // 第8轮选择（1-based索引）
+    
+    console.log(`分支检查 (第${round + 1}轮): 正义值=${justiceScore}, 第2轮选择=${round2Choice}, 第8轮选择=${round8Choice}`);
+    
+    // 检查正义英雄路线分支 - 渐进式触发条件
+    if (round === 5) { // round 5 = 第6轮：需要正义值>=4且第2轮有正义选择
+      if (justiceScore >= 4 && ['A', 'C'].includes(round2Choice || '')) {
+        console.log('✅ 第6轮正义分支触发条件满足');
+        return this.getJusticeBranchEvent(round);
+      } else {
+        console.log(`❌ 第6轮正义分支未触发: 正义值${justiceScore}>=4? ${justiceScore >= 4}, 选择${round2Choice}在[A,C]中? ${['A', 'C'].includes(round2Choice || '')}`);
+      }
+    }
+    
+    if (round === 8) { // round 8 = 第9轮：需要正义值>=5且第8轮选择A（救人）
+      if (justiceScore >= 5 && round8Choice === 'A') {
+        console.log('✅ 第9轮正义分支触发条件满足');
+        return this.getJusticeBranchEvent(round);
+      } else {
+        console.log(`❌ 第9轮正义分支未触发: 正义值${justiceScore}>=5? ${justiceScore >= 5}, 第8轮选择${round8Choice}===A? ${round8Choice === 'A'}`);
+      }
+    }
+    
+    if (round === 9) { // round 9 = 第10轮：需要正义值>=6（最终分支）
+      if (justiceScore >= 6) {
+        console.log('✅ 第10轮正义分支触发条件满足');
+        return this.getJusticeBranchEvent(round);
+      } else {
+        console.log(`❌ 第10轮正义分支未触发: 正义值${justiceScore}>=6? ${justiceScore >= 6}`);
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * 获取正义英雄路线的分支事件
+   */
+  private getJusticeBranchEvent(round: number): GameEvent | null {
+    switch (round) {
+      case 5: // 第6轮
+        return {
+          id: 6001,
+          title: '英雄的担当',
+          description: '由于你之前的正义行为，各路豪杰都相信你的为人。现在两大门派冲突，所有人都希望你能出面调解。',
+          options: [
+            {
+              id: 'A',
+              label: 'A',
+              description: '承担起英雄的责任，全力调解',
+              effects: { martial: 2, fame: 3, network: 2, virtue: 2, energy: -2 }
+            },
+            {
+              id: 'B', 
+              label: 'B',
+              description: '谨慎行事，先了解情况再做决定',
+              effects: { martial: 1, fame: 1, network: 1, virtue: 1, energy: -1 }
+            },
+            {
+              id: 'C',
+              label: 'C', 
+              description: '召集其他正义之士共同解决',
+              effects: { martial: 1, fame: 2, network: 3, virtue: 1, energy: -2 }
+            }
+          ]
+        };
+        
+      case 8: // 第9轮
+        return {
+          id: 6002,
+          title: '侠义召集令',
+          description: '你的正义之声传遍江湖，多位英雄响应你的号召，准备共同行动。这时有消息说一群无辜村民被匪徒围困。',
+          options: [
+            {
+              id: 'A',
+              label: 'A',
+              description: '立即带队前往救援，展现英雄本色',
+              effects: { martial: 3, fame: 3, virtue: 2, energy: -3 }
+            },
+            {
+              id: 'B',
+              label: 'B', 
+              description: '制定周密计划，确保万无一失',
+              effects: { martial: 1, fame: 2, virtue: 1, network: 1, energy: -2 }
+            },
+            {
+              id: 'C',
+              label: 'C',
+              description: '先派出斥候侦察，再做决定',
+              effects: { martial: 1, fame: 1, virtue: 1, energy: -1 }
+            }
+          ]
+        };
+        
+      case 9: // 第10轮
+        return {
+          id: 6003,
+          title: '武林盟主挑战',
+          description: '江湖大会召开，由于你的威望和正义行为，各路高手一致推举你为武林盟主候选人。这是你一统江湖、匡扶正义的最佳机会！',
+          options: [
+            {
+              id: 'A',
+              label: 'A',
+              description: '接受挑战，争夺武林盟主之位',
+              effects: { martial: 4, fame: 4, virtue: 2, energy: -3 }
+            },
+            {
+              id: 'B',
+              label: 'B',
+              description: '谦虚推辞，但承诺继续维护江湖正义',
+              effects: { martial: 2, fame: 3, virtue: 3, energy: -2 }
+            },
+            {
+              id: 'C',
+              label: 'C',
+              description: '提议建立武林联盟，共同维护江湖和平',
+              effects: { martial: 2, fame: 3, network: 3, virtue: 2, energy: -2 }
+            }
+          ]
+        };
+        
+      default:
+        return null;
+    }
   }
 
   /**

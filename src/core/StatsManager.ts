@@ -1,6 +1,13 @@
-import { ExtendedPlayerStats } from '../types/extended';
 import { PlayerStats } from '../types/game';
 import { Player } from './Player';
+
+// 为了兼容性，重新定义扩展属性类型
+type ExtendedPlayerStats = PlayerStats & {
+  mentalState?: number;
+  skillPotential?: number; 
+  luck?: number;
+  reputation?: number;
+};
 
 /**
  * 属性变化规则
@@ -78,11 +85,7 @@ export class StatsManager {
       fame: 0,
       network: 0,
       energy: 5,
-      virtue: 0,
-      mentalState: 50,
-      skillPotential: 50,
-      luck: 50,
-      reputation: 0
+      virtue: 0
     };
   }
 

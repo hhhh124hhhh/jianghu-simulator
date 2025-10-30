@@ -84,5 +84,15 @@ export interface GameState {
   isGameOver: boolean;
 }
 
+// 剧情状态标记
+export interface StoryFlags {
+  justicePath: number;      // 正义路线指数 (0-10)
+  friendshipPath: number;   // 友情路线指数 (0-10) 
+  powerPath: number;        // 实力路线指数 (0-10)
+  corruptionPath: number;   // 堕落路线指数 (0-10)
+  specialEvents: string[];  // 已触发的特殊事件
+  keyChoices: Record<number, string>; // 关键选择记录 (round -> optionId)
+}
+
 // 游戏阶段
 export type GamePhase = 'start' | 'questionnaire' | 'playing' | 'result';

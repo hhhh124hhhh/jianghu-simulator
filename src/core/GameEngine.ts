@@ -132,6 +132,20 @@ export class GameEngine {
       const event = this.roundManager.getCurrentEvent();
       const player = this.gameStateManager.getPlayer();
       
+      // 记录关键选择（只记录主事件，ID < 1000）
+      if (event && event.id < 1000) {
+        const selectedOption = event.options.find(opt => opt.id === optionId);
+        // 使用1-based索引：第1轮是游戏开始，第2轮是第一次选择
+        const roundNumber = this.gameStateManager.getCurrentRound() + 1;
+        player.recordKeyChoice(roundNumber, optionId, selectedOption?.effects);
+        
+        // 特殊处理：第8轮突发灾难的英雄行为
+        if (event.id === 8 && optionId === 'A') {
+          player.updateStoryFlag('justicePath', 2);
+          console.log('第8轮-突发灾难中选择奋勇救人，正义路线+2');
+        }
+      }
+      
       const result = this.roundManager.executeCurrentEvent(optionId);
       
       // 处理NPC事件后果

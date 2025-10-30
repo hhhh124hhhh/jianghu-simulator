@@ -1,5 +1,8 @@
-import { ExtendedPlayerStats, PlayerHistory, PlayerRelationship, FlagSystem, DebtEffect, GrudgeEffect } from '../types/extended';
-import { PlayerStats } from '../types/game';
+import { PlayerHistory, PlayerRelationship, FlagSystem, DebtEffect, GrudgeEffect } from '../types/extended';
+import { PlayerStats, StoryFlags } from '../types/game';
+
+// 为了兼容性，定义简化的属性类型
+type SimplePlayerStats = PlayerStats;
 
 /**
  * 玩家核心类
@@ -7,7 +10,7 @@ import { PlayerStats } from '../types/game';
  */
 export class Player implements FlagSystem {
   // 基础属性
-  stats: ExtendedPlayerStats;
+  stats: PlayerStats;
   
   // 历史记录
   history: PlayerHistory[];
@@ -22,6 +25,9 @@ export class Player implements FlagSystem {
   debts: DebtEffect[];
   grudges: GrudgeEffect[];
   
+  // 剧情状态标记
+  storyFlags: StoryFlags;
+  
   // 元数据
   name?: string;
   title?: string;
@@ -30,17 +36,13 @@ export class Player implements FlagSystem {
   // 关系版本号，用于强制UI更新
   private _relationshipVersion: number = 0;
   
-  constructor(initialStats?: Partial<ExtendedPlayerStats>) {
+  constructor(initialStats?: Partial<PlayerStats>) {
     this.stats = {
       martial: 0,
       fame: 0,
       network: 0,
       energy: 5,
       virtue: 0,
-      mentalState: 50,
-      skillPotential: 50,
-      luck: 50,
-      reputation: 0,
       ...initialStats
     };
     
@@ -49,12 +51,22 @@ export class Player implements FlagSystem {
     this.flags = new Map();
     this.debts = [];
     this.grudges = [];
+    
+    // 初始化剧情状态标记
+    this.storyFlags = {
+      justicePath: 0,
+      friendshipPath: 0,
+      powerPath: 0,
+      corruptionPath: 0,
+      specialEvents: [],
+      keyChoices: {}
+    };
   }
 
   /**
    * 应用属性变化
    */
-  applyStatsChange(changes: Partial<ExtendedPlayerStats>): void {
+  applyStatsChange(changes: Partial<PlayerStats>): void {
     const oldStats = { ...this.stats };
     
     // 定义属性上限
@@ -63,7 +75,7 @@ export class Player implements FlagSystem {
     // 应用变化，确保不为负数（除了特殊属性）
     Object.entries(changes).forEach(([key, value]) => {
       if (value !== undefined && key in this.stats) {
-        const currentValue = this.stats[key as keyof ExtendedPlayerStats] || 0;
+        const currentValue = this.stats[key as keyof PlayerStats] || 0;
         let newValue = currentValue + value;
         
         // 应用属性上限
@@ -75,7 +87,7 @@ export class Player implements FlagSystem {
           newValue = allowNegative ? newValue : Math.max(0, newValue);
         }
         
-        this.stats[key as keyof ExtendedPlayerStats] = newValue;
+        this.stats[key as keyof PlayerStats] = newValue;
         
         // 记录数值变化日志
         if (value !== 0) {
@@ -249,7 +261,7 @@ export class Player implements FlagSystem {
    * 获取玩家状态摘要
    */
   getSummary(): {
-    stats: ExtendedPlayerStats;
+    stats: PlayerStats;
     relationshipCount: number;
     activeDebts: number;
     activeGrudges: number;
@@ -277,7 +289,7 @@ export class Player implements FlagSystem {
    * 克隆玩家状态（用于存档/读档）
    */
   clone(): Player {
-    const cloned = new Player(this.stats);
+    const cloned = new Player(this.stats as PlayerStats);
     cloned.history = [...this.history];
     cloned.relationships = new Map(this.relationships);
     cloned.flags = new Map(this.flags);
@@ -302,6 +314,136 @@ export class Player implements FlagSystem {
     player.name = data.name;
     player.title = data.title;
     player.background = data.background;
+    player.storyFlags = data.storyFlags || player.storyFlags;
     return player;
+  }
+
+  /**
+   * 更新剧情状态标记
+   */
+  updateStoryFlag(flag: keyof StoryFlags, value: any): void {
+    switch (flag) {
+      case 'justicePath':
+      case 'friendshipPath':
+      case 'powerPath':
+      case 'corruptionPath':
+        this.storyFlags[flag] = Math.max(0, Math.min(10, this.storyFlags[flag] + value));
+        break;
+      case 'specialEvents':
+        if (!this.storyFlags.specialEvents.includes(value)) {
+          this.storyFlags.specialEvents.push(value);
+        }
+        break;
+      case 'keyChoices':
+        this.storyFlags.keyChoices = value;
+        break;
+    }
+    
+    console.log(`剧情状态更新: ${flag} = ${this.storyFlags[flag]}`);
+  }
+
+  /**
+   * 记录关键选择
+   */
+  recordKeyChoice(round: number, optionId: string, effects?: any): void {
+    this.storyFlags.keyChoices[round] = optionId;
+    
+    // 根据选择更新剧情路径
+    this.updateStoryPaths(round, optionId, effects);
+    
+    console.log(`关键选择记录: 第${round}轮选择${optionId} (使用1-based索引)`);
+  }
+
+  /**
+   * 根据选择更新剧情路径
+   */
+  private updateStoryPaths(round: number, optionId: string, effects?: any): void {
+    switch (round) {
+      case 2: // 第2轮：街市冲突（注意：现在是1-based索引）
+        if (optionId === 'A') {
+          this.updateStoryFlag('justicePath', 4);
+          console.log('第2轮-正义路线+4：挺身而出（英雄路线起点）');
+        } else if (optionId === 'B') {
+          this.updateStoryFlag('justicePath', -2);
+          this.updateStoryFlag('corruptionPath', 1);
+          console.log('第2轮-正义路线-2，堕落路线+1：袖手旁观');
+        } else if (optionId === 'C') {
+          this.updateStoryFlag('justicePath', 3);
+          this.updateStoryFlag('powerPath', 1);
+          console.log('第2轮-正义路线+3，实力路线+1：劝和（智者路线起点）');
+        }
+        break;
+        
+      case 4: // 第4轮：结交盟友
+        if (optionId === 'A') {
+          this.updateStoryFlag('friendshipPath', 3);
+          this.updateStoryFlag('justicePath', 1); // 主动结交也是正义行为
+          console.log('第4轮-友情路线+3，正义路线+1：主动结交');
+        } else if (optionId === 'B') {
+          this.updateStoryFlag('friendshipPath', 2);
+          this.updateStoryFlag('justicePath', 1);
+          console.log('第4轮-友情路线+2，正义路线+1：暗中帮助');
+        } else if (optionId === 'C') {
+          this.updateStoryFlag('friendshipPath', -1);
+          console.log('第4轮-友情路线-1：保持距离');
+        }
+        break;
+        
+      case 7: // 第7轮：秘密交易
+        if (optionId === 'A') {
+          this.updateStoryFlag('corruptionPath', 4);
+          this.updateStoryFlag('justicePath', -2);
+          console.log('第7轮-堕落路线+4，正义路线-2：接受交易');
+        } else if (optionId === 'B') {
+          this.updateStoryFlag('justicePath', 2);
+          console.log('第7轮-正义路线+2：上报门派');
+        } else if (optionId === 'C') {
+          this.updateStoryFlag('justicePath', 1);
+          this.updateStoryFlag('corruptionPath', -1);
+          console.log('第7轮-正义路线+1，堕落路线-1：拒绝诱惑');
+        }
+        break;
+        
+      case 8: // 突发灾难（从事件ID判断）
+        // 这个会在事件执行时额外处理，因为需要根据具体选择判断
+        break;
+    }
+  }
+
+  /**
+   * 检查是否满足分支条件
+   */
+  checkBranchCondition(branchType: string, requiredValue: number): boolean {
+    switch (branchType) {
+      case 'justice':
+        return this.storyFlags.justicePath >= requiredValue;
+      case 'friendship':
+        return this.storyFlags.friendshipPath >= requiredValue;
+      case 'power':
+        return this.storyFlags.powerPath >= requiredValue;
+      case 'corruption':
+        return this.storyFlags.corruptionPath >= requiredValue;
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * 获取剧情状态摘要
+   */
+  getStoryFlagsSummary(): StoryFlags & { dominantPath: string } {
+    const flags = { ...this.storyFlags };
+    const paths = [
+      { name: 'justice', value: flags.justicePath },
+      { name: 'friendship', value: flags.friendshipPath },
+      { name: 'power', value: flags.powerPath },
+      { name: 'corruption', value: flags.corruptionPath }
+    ];
+    
+    const dominantPath = paths.reduce((max, current) => 
+      current.value > max.value ? current : max
+    ).name;
+    
+    return { ...flags, dominantPath };
   }
 }
