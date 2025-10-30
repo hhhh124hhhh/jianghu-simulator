@@ -88,11 +88,7 @@ export const NPCRelationshipPanel: React.FC<NPCRelationshipPanelProps> = ({
       groups[type].sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
     });
 
-    console.log('NPCRelationshipPanel: 重新计算关系分组', {
-      totalRelationships: player.relationships.size,
-      relationshipVersion: player.getRelationshipVersion ? player.getRelationshipVersion() : 'N/A'
-    });
-
+    
     return groups;
   }, [player]);
 
@@ -130,7 +126,6 @@ export const NPCRelationshipPanel: React.FC<NPCRelationshipPanelProps> = ({
   const handleShowHistory = (npcId: string) => {
     setSelectedNPC(npcId);
     // 这里可以显示历史记录的弹窗
-    console.log('显示历史记录:', npcId);
   };
 
   return (

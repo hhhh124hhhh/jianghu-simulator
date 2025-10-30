@@ -90,16 +90,12 @@ export class RoundManager {
 
       // 获取当前回合的主事件
       this.currentEvent = this.getMainEvent(round);
-      
-      // 检查随机事件
-      const randomEvents = this.checkRandomEvents(round);
-      this.randomEvents = randomEvents;
 
       // 触发回合准备完成钩子
       this.eventSystem.triggerEventHooks('roundReady', {
         round,
         mainEvent: this.currentEvent,
-        randomEvents,
+        randomEvents: [],
         player: this.gameState.getPlayer(),
         gameState: this.gameState
       });
@@ -110,7 +106,7 @@ export class RoundManager {
       return {
         round,
         mainEvent: this.currentEvent,
-        randomEvents,
+        randomEvents: [],
         delayedEffectsTriggered: delayedEffects.map(e => e.id),
         isGameOver
       };
@@ -154,8 +150,12 @@ export class RoundManager {
         console.log(`处理NPC事件后果: ${this.currentEvent.id}`);
       }
 
-      // 处理随机事件
-      const randomEventResults = this.processRandomEvents();
+      // 检查随机事件（在主事件执行后）
+      const randomEvents = this.checkRandomEvents(round);
+      this.randomEvents = randomEvents;
+      
+      // 准备随机事件（不立即应用效果）
+      const randomEventResults = this.prepareRandomEvents();
 
       // 检查成就
       const achievements = this.checkAchievements();
@@ -272,10 +272,9 @@ export class RoundManager {
   }
 
   /**
-   * 处理随机事件
+   * 准备随机事件（只生成，不应用效果）
    */
-  private processRandomEvents(): any[] {
-    const player = this.gameState.getPlayer();
+  private prepareRandomEvents(): any[] {
     const results: any[] = [];
 
     this.randomEvents.forEach(randomEvent => {
@@ -286,6 +285,27 @@ export class RoundManager {
             console.warn(`随机事件效果过强: ${randomEvent.title} - ${key}: ${value}`);
           }
         });
+
+        results.push({
+          event: randomEvent,
+          success: true
+        });
+      }
+    });
+
+    return results;
+  }
+
+  /**
+   * 应用随机事件效果（在用户关闭弹窗时调用）
+   */
+  applyRandomEventEffects(): any[] {
+    const player = this.gameState.getPlayer();
+    const results: any[] = [];
+
+    this.randomEvents.forEach(randomEvent => {
+      if (randomEvent && randomEvent.effects) {
+        console.log(`应用随机事件效果: ${randomEvent.title}`, randomEvent.effects);
         
         // 应用随机事件效果
         player.applyStatsChange(randomEvent.effects);
@@ -413,6 +433,14 @@ export class RoundManager {
    */
   getCurrentRandomEvents(): any[] {
     return [...this.randomEvents];
+  }
+
+  /**
+   * 清空随机事件数组（在用户关闭弹窗后调用）
+   */
+  clearRandomEvents(): void {
+    this.randomEvents = [];
+    console.log('随机事件已清空');
   }
 
   /**

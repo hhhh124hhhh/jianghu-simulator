@@ -73,11 +73,7 @@ export const NetworkVisualization: React.FC<NetworkVisualizationProps> = ({
       });
     });
 
-    console.log('NetworkVisualization: 重新计算网络布局', {
-      relationshipCount: relationships.length,
-      relationshipVersion: player.getRelationshipVersion ? player.getRelationshipVersion() : 'N/A'
-    });
-
+    
     return { nodes: networkNodes, edges: networkEdges };
   }, [player, centerX, centerY]);
 

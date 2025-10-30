@@ -40,19 +40,12 @@ export const GamePlayScreen = ({
     const shouldEndGame = gameState.isGameOver || gameState.currentRound >= gameState.maxRounds;
     
     if (shouldEndGame) {
-      console.log('游戏结束条件触发', {
-        isGameOver: gameState.isGameOver,
-        currentRound: gameState.currentRound,
-        maxRounds: gameState.maxRounds,
-        shouldEndGame
-      });
-      
       // 强制立即触发游戏结束，不延迟
       onGameOver();
     }
   }, [gameState.isGameOver, gameState.currentRound, gameState.maxRounds, onGameOver]);
 
-  // 检查随机事件（现在通过GameEngine统一管理）
+  // 检查随机事件（在主事件执行后）
   useEffect(() => {
     if (gameEngine) {
       const randomEvents = gameEngine.getCurrentRandomEvents();
@@ -61,9 +54,50 @@ export const GamePlayScreen = ({
         setShowRandomEvent(true);
         // 播放事件音效
         playSound('event');
+        console.log('随机事件显示:', randomEvents[0].title);
       }
     }
   }, [gameState.currentRound, playSound, gameEngine]);
+
+  // 监听成就变化（包括随机事件触发的成就）
+  useEffect(() => {
+    if (gameEngine) {
+      const currentPlayer = gameEngine.getPlayer();
+      const gameState = gameEngine.getGameState();
+      
+      // 检查当前回合是否已完成（包括主事件和随机事件）
+      const roundCompleted = gameState.currentRound > 0;
+      
+      if (roundCompleted) {
+        // 检查最近的历史记录中是否有成就解锁
+        const recentHistory = currentPlayer.history.slice(-2);
+        let foundAchievements: string[] = [];
+        
+        for (const history of recentHistory) {
+          if (history.metadata?.achievementsUnlocked) {
+            foundAchievements = [...foundAchievements, ...history.metadata.achievementsUnlocked];
+          }
+        }
+        
+        // 去重，只显示不重复的成就
+        const uniqueAchievements = Array.from(new Set(foundAchievements));
+        
+        if (uniqueAchievements.length > 0 && !recentHistory.some(h => h.metadata?.achievementsUnlocked)) {
+          console.log('回合结束时发现新成就:', uniqueAchievements);
+          
+          // 逐个显示成就弹窗
+          uniqueAchievements.forEach((achName: string, index: number) => {
+            setTimeout(() => {
+              setNewAchievements([achName]);
+              setTimeout(() => setNewAchievements([]), 2500);
+            }, index * 3000);
+          });
+          
+          playSound('success');
+        }
+      }
+    }
+  }, [gameState.currentRound, gameEngine, playSound]); // 添加forceUpdate依赖
 
   // 如果没有当前事件（游戏结束），显示加载状态
   if (!currentEvent) {
@@ -110,43 +144,42 @@ export const GamePlayScreen = ({
       // 检查关系是否发生变化，如果有则强制更新UI
       const afterVersion = gameEngine.getPlayer().getRelationshipVersion?.() || 0;
       if (afterVersion > beforeVersion) {
-        console.log('检测到关系变化，强制UI更新', {
-          beforeVersion,
-          afterVersion,
-          change: afterVersion - beforeVersion
-        });
         setForceUpdate(prev => prev + 1);
       }
 
-      // 检查成就变化 - 只显示由EventSystem处理的新解锁成就
-      // 通过比较Player历史记录中的成就解锁信息来避免重复显示
+      // 检查成就变化 - 改进成就检测逻辑
       const currentPlayer = gameEngine.getPlayer();
-      const latestHistory = currentPlayer.history[currentPlayer.history.length - 1];
       
-      if (latestHistory && latestHistory.metadata?.achievementsUnlocked) {
-        // 显示EventSystem记录的新解锁成就
-        const newAchievements = latestHistory.metadata.achievementsUnlocked;
-        if (newAchievements.length > 0) {
-          // 逐个显示成就弹窗
-          newAchievements.forEach((achName: string, index: number) => {
-            setTimeout(() => {
-              setNewAchievements([achName]); // 一次只显示一个成就
-              setTimeout(() => setNewAchievements([]), 2500); // 2.5秒后隐藏
-            }, index * 3000); // 每3秒显示一个
-          });
-          
-          // 播放成功音效
-          playSound('success');
+      // 获取最新历史记录中的成就解锁信息
+      const recentHistory = currentPlayer.history.slice(-3); // 检查最近3条历史
+      let foundAchievements: string[] = [];
+      
+      for (const history of recentHistory) {
+        if (history.metadata?.achievementsUnlocked) {
+          foundAchievements = [...foundAchievements, ...history.metadata.achievementsUnlocked];
         }
+      }
+      
+      // 去重，只显示不重复的成就
+      const uniqueAchievements = Array.from(new Set(foundAchievements));
+      
+      if (uniqueAchievements.length > 0) {
+        console.log('发现新解锁成就:', uniqueAchievements);
+        
+        // 逐个显示成就弹窗
+        uniqueAchievements.forEach((achName: string, index: number) => {
+          setTimeout(() => {
+            setNewAchievements([achName]); // 一次只显示一个成就
+            setTimeout(() => setNewAchievements([]), 2500); // 2.5秒后隐藏
+          }, index * 3000); // 每3秒显示一个
+        });
+        
+        // 播放成功音效
+        playSound('success');
       }
 
       // 如果游戏结束，立即触发结束事件
       if (newState.isGameOver || newState.currentRound >= newState.maxRounds) {
-        console.log('handleConfirm中检测到游戏结束', {
-          isGameOver: newState.isGameOver,
-          currentRound: newState.currentRound,
-          maxRounds: newState.maxRounds
-        });
         // 立即触发游戏结束，不延迟
         onGameOver();
       }
@@ -154,10 +187,22 @@ export const GamePlayScreen = ({
   };
 
   const handleCloseRandomEvent = () => {
-    // 随机事件现在由RoundManager统一处理，这里只需要关闭UI
-    // 属性变化已经在RoundManager.processRandomEvents()中应用
+    console.log('关闭随机事件:', currentRandomEvent?.title);
+    
+    // 应用随机事件效果（在用户关闭弹窗时）
+    if (gameEngine && currentRandomEvent) {
+      gameEngine.applyRandomEventEffects();
+      console.log('随机事件效果已应用:', currentRandomEvent.effects);
+    }
+    
+    // 关闭随机事件UI
     setShowRandomEvent(false);
     setCurrentRandomEvent(null);
+    
+    // 清空RoundManager中的随机事件数组，防止重复显示
+    if (gameEngine) {
+      gameEngine.clearRandomEvents();
+    }
   };
 
   return (
@@ -216,16 +261,6 @@ export const GamePlayScreen = ({
                 className="sticky top-4"
               />
             )}
-            
-            {/* 调试信息 */}
-            {process.env.NODE_ENV === 'development' && (
-              <div className="bg-background-dark border border-gold-primary/30 rounded-lg p-4 text-xs text-text-secondary">
-                <p>调试信息:</p>
-                <p>游戏引擎: {gameEngine ? '已加载' : '未加载'}</p>
-                <p>玩家关系数: {gameEngine ? gameEngine.getPlayer().relationships.size : 0}</p>
-                <p>当前回合: {gameState.currentRound}/{gameState.maxRounds}</p>
-              </div>
-            )}
           </div>
 
           {/* 右侧：事件区域 */}
@@ -274,9 +309,46 @@ export const GamePlayScreen = ({
               </p>
             </div>
 
+            {/* 当前属性显示 */}
+            <div className="bg-background-hover border border-border-subtle rounded-lg p-4 mb-4">
+              <h5 className="text-body font-semibold text-text-primary mb-2">
+                当前属性：
+              </h5>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
+                {gameEngine && gameEngine.getPlayer() && [
+                  {key: 'martial', label: '武艺'},
+                  {key: 'fame', label: '威望'},
+                  {key: 'network', label: '人脉'},
+                  {key: 'energy', label: '内力'},
+                  {key: 'virtue', label: '侠义值'}
+                ].map(stat => {
+                  const currentStats = gameEngine.getPlayer().getCurrentStats();
+                  const effect = (currentRandomEvent?.effects as any)?.[stat.key] || 0;
+                  const newValue = currentStats[stat.key as keyof typeof currentStats] + effect;
+                  
+                  return (
+                    <div key={stat.key} className="text-center">
+                      <div className="text-sm text-text-secondary">{stat.label}</div>
+                      <div className="text-h4 font-bold text-gold-primary">
+                        {currentStats[stat.key as keyof typeof currentStats]}
+                      </div>
+                      {effect !== 0 && (
+                        <div className={`text-xs font-medium ${
+                          effect > 0 ? 'text-semantic-success' : 'text-semantic-error'
+                        }`}>
+                          → {newValue} ({effect > 0 ? '+' : ''}{effect})
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 即将发生的变化 */}
             <div className="bg-background-hover border border-border-subtle rounded-lg p-4">
               <h5 className="text-body font-semibold text-text-primary mb-2">
-                属性变化：
+                即将发生的变化：
               </h5>
               <div className="flex flex-wrap gap-2">
                 {Object.entries(currentRandomEvent?.effects || {}).map(
@@ -299,6 +371,9 @@ export const GamePlayScreen = ({
                   )
                 )}
               </div>
+              <p className="text-sm text-text-secondary mt-2">
+                点击"继续冒险"后，这些变化将会生效
+              </p>
             </div>
 
             <Button onClick={handleCloseRandomEvent} size="lg" className="w-full">

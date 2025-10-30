@@ -132,28 +132,12 @@ export class GameEngine {
       const event = this.roundManager.getCurrentEvent();
       const player = this.gameStateManager.getPlayer();
       
-      // 执行前健康检查
-      const beforeStats = player.getCurrentStats();
-      console.log(`执行事件选择前 - 当前属性:`, beforeStats);
-      
       const result = this.roundManager.executeCurrentEvent(optionId);
       
       // 处理NPC事件后果
       if (event && event.id >= 1000) {
         processNPCEventConsequences(event.id, optionId, player, this.npcManager);
       }
-      
-      // 执行后健康检查
-      const afterStats = player.getCurrentStats();
-      console.log(`执行事件选择后 - 更新属性:`, afterStats);
-      
-      // 检查是否有异常变化
-      Object.keys(beforeStats).forEach(key => {
-        const change = (afterStats as any)[key] - (beforeStats as any)[key];
-        if (Math.abs(change) > 8) {
-          console.warn(`检测到异常大的属性变化: ${key} ${change}`);
-        }
-      });
       
       // 进入下一回合
       this.nextRound();
@@ -312,6 +296,20 @@ export class GameEngine {
    */
   getCurrentRandomEvents(): any[] {
     return this.roundManager.getCurrentRandomEvents();
+  }
+
+  /**
+   * 清空随机事件（在用户关闭弹窗后调用）
+   */
+  clearRandomEvents(): void {
+    this.roundManager.clearRandomEvents();
+  }
+
+  /**
+   * 应用随机事件效果（在用户关闭弹窗时调用）
+   */
+  applyRandomEventEffects(): any[] {
+    return this.roundManager.applyRandomEventEffects();
   }
 
   /**
