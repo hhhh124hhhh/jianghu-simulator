@@ -94,39 +94,80 @@ export const randomEventPool: RandomEvent[] = [
     effects: { energy: -2, martial: -1 },
   },
 
+  // 负面事件
+  {
+    id: 're-negative-1',
+    type: 'negative',
+    title: '钱财被盗',
+    description: '在客栈住宿时遭遇小偷，损失了一些财物。',
+    effects: { network: -1, fame: -1 },
+  },
+  {
+    id: 're-negative-2',
+    type: 'negative',
+    title: '误食毒物',
+    description: '不慎食用了变质食物，导致身体虚弱。',
+    effects: { energy: -3, martial: -1 },
+  },
+  {
+    id: 're-negative-3',
+    type: 'negative',
+    title: '谣言中伤',
+    description: '有人散播关于你的不实谣言，影响了声誉。',
+    effects: { fame: -2, virtue: -1 },
+  },
+
   // 神秘机缘
   {
     id: 're-mystery-1',
     type: 'mystery',
     title: '古洞奇遇',
     description: '偶然发现一处古洞，在洞中获得了一本武功秘籍。',
-    effects: { martial: 3, fame: 1, energy: 1 },
+    effects: { martial: 2, fame: 1, energy: 1 }, // 降低武艺奖励
   },
   {
     id: 're-mystery-2',
     type: 'mystery',
     title: '高人指点',
     description: '巧遇隐世高人，获得醍醐灌顶般的指点，功力大增。',
-    effects: { martial: 2, virtue: 2, energy: 1 },
+    effects: { martial: 2, virtue: 1, energy: 1 }, // 降低侠义值奖励
   },
   {
     id: 're-mystery-3',
     type: 'mystery',
     title: '灵药相助',
     description: '意外得到一株珍贵灵药，服用后内力大涨。',
-    effects: { energy: 2, martial: 1, fame: 1 },
+    effects: { energy: 2, martial: 0, fame: 0 }, // 专注于内力恢复
   },
 ];
 
-// 获取随机事件
+// 获取随机事件（保持向后兼容）
 export const getRandomEvent = (): RandomEvent | null => {
-  // 20%-40%触发概率
+  return getRandomEventFiltered(new Set<string>());
+};
+
+// 获取随机事件（过滤已触发的事件）
+export const getRandomEventFiltered = (triggeredEventIds: Set<string>): RandomEvent | null => {
+  // 25%触发概率（降低频率）
   const triggerChance = Math.random();
-  if (triggerChance > 0.4) {
+  if (triggerChance > 0.25) {
     return null;
   }
 
-  // 随机选择一个事件
-  const randomIndex = Math.floor(Math.random() * randomEventPool.length);
-  return randomEventPool[randomIndex];
+  // 过滤已触发的事件
+  const availableEvents = randomEventPool.filter(event => !triggeredEventIds.has(event.id));
+  
+  // 如果没有可用事件，重置池子（允许重复）
+  if (availableEvents.length === 0) {
+    console.log('所有随机事件都已触发，重置事件池');
+    const randomIndex = Math.floor(Math.random() * randomEventPool.length);
+    return randomEventPool[randomIndex];
+  }
+
+  // 随机选择一个可用事件
+  const randomIndex = Math.floor(Math.random() * availableEvents.length);
+  const selectedEvent = availableEvents[randomIndex];
+  
+  console.log(`随机事件选择: ${selectedEvent.title} (剩余可用: ${availableEvents.length - 1})`);
+  return selectedEvent;
 };

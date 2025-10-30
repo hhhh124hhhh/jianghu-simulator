@@ -1,16 +1,21 @@
+import React, { useMemo } from 'react';
 import { GameState } from '../types/game';
 import { StatsDisplay } from '../components/StatBar';
 import { AchievementsList } from '../components/Achievement';
 import { Button } from '../components/Button';
+import { NetworkVisualization } from '../components/NetworkVisualization';
+import { NetworkAnalysis } from '../components/NetworkAnalysis';
+import { Player } from '../types/extended';
 
 interface ResultScreenProps {
   gameState: GameState;
+  player: Player; // 添加Player对象作为props
   onRestart: () => void;
 }
 
-export const ResultScreen = ({ gameState, onRestart }: ResultScreenProps) => {
-  // 防御性检查：确保gameState有效
-  if (!gameState) {
+export const ResultScreen = ({ gameState, player, onRestart }: ResultScreenProps) => {
+  // 防御性检查：确保gameState和player有效
+  if (!gameState || !player) {
     return (
       <div className="min-h-screen bg-background-near flex items-center justify-center">
         <div className="text-center">
@@ -35,13 +40,14 @@ export const ResultScreen = ({ gameState, onRestart }: ResultScreenProps) => {
     randomEvents: gameState.randomEvents || []
   };
 
-  // 计算总分和评级
+  // 计算总分和评级 - 使用Player对象的真实属性
+  const playerStats = player ? player.getCurrentStats() : safeGameState.playerStats;
   const totalScore =
-    safeGameState.playerStats.martial +
-    safeGameState.playerStats.fame +
-    safeGameState.playerStats.network +
-    safeGameState.playerStats.energy +
-    safeGameState.playerStats.virtue;
+    playerStats.martial +
+    playerStats.fame +
+    playerStats.network +
+    playerStats.energy +
+    playerStats.virtue;
 
   const getRating = (score: number): string => {
     if (score >= 80) return '江湖传奇';
@@ -69,7 +75,7 @@ export const ResultScreen = ({ gameState, onRestart }: ResultScreenProps) => {
       stats.virtue
     );
 
-    let analysis = {
+    const analysis = {
       strength: '',
       weakness: '',
       suggestion: '',
@@ -124,18 +130,62 @@ export const ResultScreen = ({ gameState, onRestart }: ResultScreenProps) => {
   };
 
   const analysis = getAnalysis();
-  const unlockedAchievements = safeGameState.achievements.filter(
+  
+  // 使用Player对象的成就数据，确保与游戏状态同步
+  const achievementsData = player ? 
+    // 如果有Player对象，从gameState获取最新成就数据（因为Player对象可能不包含成就）
+    safeGameState.achievements : 
+    safeGameState.achievements;
+    
+  const unlockedAchievements = achievementsData.filter(
     (ach) => ach && ach.unlocked
   );
 
-  // 准备属性数据（用于可视化显示）
+  // 准备属性数据（用于可视化显示）- 使用Player对象的真实属性
   const statsData = [
-    { name: '武艺', value: safeGameState.playerStats.martial },
-    { name: '威望', value: safeGameState.playerStats.fame },
-    { name: '人脉', value: safeGameState.playerStats.network },
-    { name: '内力', value: safeGameState.playerStats.energy },
-    { name: '侠义值', value: safeGameState.playerStats.virtue },
+    { name: '武艺', value: playerStats.martial },
+    { name: '威望', value: playerStats.fame },
+    { name: '人脉', value: playerStats.network },
+    { name: '内力', value: playerStats.energy },
+    { name: '侠义值', value: playerStats.virtue },
   ];
+
+  // 直接使用真实的Player对象，如果不存在则创建最小化的mock对象
+  const finalPlayer: Player = player || ({
+    stats: playerStats,
+    relationships: new Map(), // 如果没有真实Player对象，使用空关系
+    history: [],
+    flags: new Map(),
+    debts: [],
+    grudges: [],
+    applyStatsChange: () => {},
+    addHistory: () => {},
+    setRelationship: (npcId: string, targetName: string, value: number, type?: any) => {},
+    getRelationship: () => undefined,
+    modifyRelationship: (npcId: string, delta: number) => {},
+    hasRelationship: () => false,
+    getCurrentStats: () => playerStats,
+    setFlag: () => {},
+    getFlag: () => undefined,
+    hasFlag: () => false,
+    clearFlag: () => {},
+    addDebt: () => {},
+    repayDebt: () => false,
+    getActiveDebts: () => [],
+    addGrudge: () => {},
+    resolveGrudge: () => false,
+    getActiveGrudges: () => [],
+    getSummary: () => ({
+      stats: playerStats,
+      relationshipCount: 0,
+      activeDebts: 0,
+      activeGrudges: 0,
+      flagsCount: 0,
+      historyLength: 0
+    }),
+    getRelationshipVersion: () => 0,
+    clone: () => finalPlayer
+  } as unknown) as Player;
 
   return (
     <div className="min-h-screen bg-background-near p-4 py-12">
@@ -239,7 +289,7 @@ export const ResultScreen = ({ gameState, onRestart }: ResultScreenProps) => {
 
         {/* 成就系统 */}
         <AchievementsList
-          achievements={safeGameState.achievements}
+          achievements={achievementsData}
           showBonus={true}
         />
 
@@ -274,6 +324,12 @@ export const ResultScreen = ({ gameState, onRestart }: ResultScreenProps) => {
               <p className="text-text-secondary text-sm mt-1">总评分</p>
             </div>
           </div>
+        </div>
+
+        {/* 人脉网络分析 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <NetworkVisualization player={finalPlayer} />
+          <NetworkAnalysis player={finalPlayer} />
         </div>
 
         {/* 重新开始 */}

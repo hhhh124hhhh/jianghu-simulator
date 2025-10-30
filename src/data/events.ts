@@ -37,18 +37,42 @@ export const gameEvents: GameEvent[] = [
         label: 'A',
         description: '挺身而出，主持正义',
         effects: { martial: 2, fame: 2, energy: -2 },
+        npcRelationshipEffects: [
+          {
+            npcId: 'npc001',
+            npcName: '掌门',
+            relationshipChange: 5,
+            reason: '正义行为获得掌门认可'
+          }
+        ]
       },
       {
         id: 'B',
         label: 'B',
         description: '旁观事态发展',
         effects: { energy: -1, virtue: -1 },
+        npcRelationshipEffects: [
+          {
+            npcId: 'npc001',
+            npcName: '掌门',
+            relationshipChange: -3,
+            reason: '袖手旁观让掌门失望'
+          }
+        ]
       },
       {
         id: 'C',
         label: 'C',
         description: '劝和双方，化解矛盾',
         effects: { martial: 1, network: 1 },
+        npcRelationshipEffects: [
+          {
+            npcId: 'npc001',
+            npcName: '掌门',
+            relationshipChange: 3,
+            reason: '智慧处理问题获得赞赏'
+          }
+        ]
       },
     ],
   },
@@ -87,18 +111,42 @@ export const gameEvents: GameEvent[] = [
         label: 'A',
         description: '主动邀请结为兄弟',
         effects: { network: 3, energy: -1 },
+        npcRelationshipEffects: [
+          {
+            npcId: 'npc004',
+            npcName: '柳师兄',
+            relationshipChange: 15,
+            reason: '主动结交为兄弟，关系更加密切'
+          }
+        ]
       },
       {
         id: 'B',
         label: 'B',
         description: '暗中帮助，建立好感',
         effects: { network: 2, martial: 1, energy: -1 },
+        npcRelationshipEffects: [
+          {
+            npcId: 'npc004',
+            npcName: '柳师兄',
+            relationshipChange: 8,
+            reason: '暗中帮助建立了初步信任'
+          }
+        ]
       },
       {
         id: 'C',
         label: 'C',
         description: '保持距离，不轻易交心',
         effects: { energy: 1, network: -1 },
+        npcRelationshipEffects: [
+          {
+            npcId: 'npc004',
+            npcName: '柳师兄',
+            relationshipChange: -5,
+            reason: '保持距离让关系疏远'
+          }
+        ]
       },
     ],
   },

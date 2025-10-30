@@ -1,23 +1,27 @@
 import { useState, useEffect } from 'react';
 import { GameState, PlayerStats } from '../types/game';
 import { gameEvents } from '../data/events';
-import { getRandomEvent } from '../data/randomEvents';
 import { checkAchievements, applyAchievementBonus } from '../data/achievements';
-import { applyStatsChange, isOptionAvailable, recoverEnergyPerRound } from '../utils/gameLogic';
+import { isOptionAvailable, recoverEnergyPerRound } from '../utils/gameLogic';
 import { StatsDisplay } from '../components/StatBar';
 import { EventCard } from '../components/EventCard';
 import { Button } from '../components/Button';
-import { Sparkles, AlertCircle } from 'lucide-react';
+import { NPCRelationshipPanel } from '../components/NPCRelationshipPanel';
+import { Sparkles, AlertCircle, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { useSound } from '../hooks/useSound';
+import { GameEngine } from '../core/GameEngine';
+import { NPC } from '../types/extended';
 
 interface GamePlayScreenProps {
   gameState: GameState;
+  gameEngine: GameEngine;
   onUpdateState: (state: GameState) => void;
   onGameOver: () => void;
 }
 
 export const GamePlayScreen = ({
   gameState,
+  gameEngine,
   onUpdateState,
   onGameOver,
 }: GamePlayScreenProps) => {
@@ -26,28 +30,40 @@ export const GamePlayScreen = ({
   const [showRandomEvent, setShowRandomEvent] = useState(false);
   const [currentRandomEvent, setCurrentRandomEvent] = useState<any>(null);
   const [newAchievements, setNewAchievements] = useState<string[]>([]);
+  const [showRelationshipPanel, setShowRelationshipPanel] = useState(false);
+  const [forceUpdate, setForceUpdate] = useState(0); // 强制更新标志
 
-  const currentEvent = gameEvents[gameState.currentRound];
+  const currentEvent = gameEngine ? gameEngine.getCurrentEvent() : null;
 
   // 如果游戏已结束，立即触发结束事件
   useEffect(() => {
-    if (gameState.isGameOver || gameState.currentRound >= gameState.maxRounds) {
+    const shouldEndGame = gameState.isGameOver || gameState.currentRound >= gameState.maxRounds;
+    
+    if (shouldEndGame) {
+      console.log('游戏结束条件触发', {
+        isGameOver: gameState.isGameOver,
+        currentRound: gameState.currentRound,
+        maxRounds: gameState.maxRounds,
+        shouldEndGame
+      });
+      
+      // 强制立即触发游戏结束，不延迟
       onGameOver();
     }
   }, [gameState.isGameOver, gameState.currentRound, gameState.maxRounds, onGameOver]);
 
+  // 检查随机事件（现在通过GameEngine统一管理）
   useEffect(() => {
-    // 检查是否触发随机事件
-    if (gameState.currentRound > 0 && gameState.currentRound < 10) {
-      const randomEvent = getRandomEvent();
-      if (randomEvent) {
-        setCurrentRandomEvent(randomEvent);
+    if (gameEngine) {
+      const randomEvents = gameEngine.getCurrentRandomEvents();
+      if (randomEvents.length > 0) {
+        setCurrentRandomEvent(randomEvents[0]); // 显示第一个随机事件
         setShowRandomEvent(true);
         // 播放事件音效
         playSound('event');
       }
     }
-  }, [gameState.currentRound, playSound]);
+  }, [gameState.currentRound, playSound, gameEngine]);
 
   // 如果没有当前事件（游戏结束），显示加载状态
   if (!currentEvent) {
@@ -65,129 +81,81 @@ export const GamePlayScreen = ({
   };
 
   const handleConfirm = () => {
-    if (!selectedOption) return;
+    if (!selectedOption || !gameEngine) return;
 
     const option = currentEvent.options.find(
       (opt) => opt.id === selectedOption
     );
     if (!option) return;
 
-    // 检查内力是否足够执行该选项
+    // 检查内力是否足够执行该选项 - 使用Player对象的实时属性
+    const player = gameEngine.getPlayer();
+    const currentEnergy = player.stats.energy;
     const energyChange = option.effects.energy || 0;
-    if (!isOptionAvailable(gameState.playerStats.energy, energyChange)) {
+    if (!isOptionAvailable(currentEnergy, energyChange)) {
       alert('内力不足！无法执行此选项。请选择消耗内力较少的选项。');
       return;
     }
 
-    // 应用选项效果
-    let newStats = applyStatsChange(gameState.playerStats, option.effects);
+    // 记录执行前的关系版本号
+    const beforeVersion = gameEngine.getPlayer().getRelationshipVersion?.() || 0;
 
-    // 每轮结束自动恢复1点内力（模拟休息调息）
-    if (gameState.currentRound < gameState.maxRounds - 1) {
-      newStats = {
-        ...newStats,
-        energy: recoverEnergyPerRound(newStats.energy)
-      };
-    }
+    // 使用游戏引擎执行事件选择
+    if (gameEngine.executeEventChoice(selectedOption)) {
+      // 更新游戏状态
+      const newState = gameEngine.getGameState();
+      onUpdateState(newState);
+      setSelectedOption(null);
 
-    // 检查成就
-    const updatedAchievements = checkAchievements(
-      newStats,
-      gameState.achievements
-    );
-    const unlockedAchievements = updatedAchievements.filter(
-      (ach) =>
-        ach.unlocked &&
-        !gameState.achievements.find((a) => a.id === ach.id)?.unlocked
-    );
+      // 检查关系是否发生变化，如果有则强制更新UI
+      const afterVersion = gameEngine.getPlayer().getRelationshipVersion?.() || 0;
+      if (afterVersion > beforeVersion) {
+        console.log('检测到关系变化，强制UI更新', {
+          beforeVersion,
+          afterVersion,
+          change: afterVersion - beforeVersion
+        });
+        setForceUpdate(prev => prev + 1);
+      }
 
-    // 应用成就奖励
-    unlockedAchievements.forEach((ach) => {
-      newStats = applyAchievementBonus(newStats, ach);
-    });
+      // 检查成就变化 - 只显示由EventSystem处理的新解锁成就
+      // 通过比较Player历史记录中的成就解锁信息来避免重复显示
+      const currentPlayer = gameEngine.getPlayer();
+      const latestHistory = currentPlayer.history[currentPlayer.history.length - 1];
+      
+      if (latestHistory && latestHistory.metadata?.achievementsUnlocked) {
+        // 显示EventSystem记录的新解锁成就
+        const newAchievements = latestHistory.metadata.achievementsUnlocked;
+        if (newAchievements.length > 0) {
+          // 逐个显示成就弹窗
+          newAchievements.forEach((achName: string, index: number) => {
+            setTimeout(() => {
+              setNewAchievements([achName]); // 一次只显示一个成就
+              setTimeout(() => setNewAchievements([]), 2500); // 2.5秒后隐藏
+            }, index * 3000); // 每3秒显示一个
+          });
+          
+          // 播放成功音效
+          playSound('success');
+        }
+      }
 
-    // 记录新成就
-    if (unlockedAchievements.length > 0) {
-      setNewAchievements(unlockedAchievements.map((ach) => ach.name));
-      // 播放成功音效
-      playSound('success');
-      setTimeout(() => setNewAchievements([]), 3000);
-    }
-
-    // 更新游戏状态
-    const newState: GameState = {
-      ...gameState,
-      currentRound: gameState.currentRound + 1,
-      playerStats: newStats,
-      eventHistory: [
-        ...gameState.eventHistory,
-        {
-          round: gameState.currentRound,
-          eventId: currentEvent.id,
-          selectedOption: selectedOption,
-          effects: option.effects,
-        },
-      ],
-      achievements: updatedAchievements,
-      isGameOver: gameState.currentRound + 1 >= gameState.maxRounds,
-    };
-
-    onUpdateState(newState);
-    setSelectedOption(null);
-
-    // 如果游戏结束，触发结束事件
-    if (newState.isGameOver) {
-      setTimeout(() => onGameOver(), 1000);
+      // 如果游戏结束，立即触发结束事件
+      if (newState.isGameOver || newState.currentRound >= newState.maxRounds) {
+        console.log('handleConfirm中检测到游戏结束', {
+          isGameOver: newState.isGameOver,
+          currentRound: newState.currentRound,
+          maxRounds: newState.maxRounds
+        });
+        // 立即触发游戏结束，不延迟
+        onGameOver();
+      }
     }
   };
 
   const handleCloseRandomEvent = () => {
-    if (!currentRandomEvent) return;
-
-    // 应用随机事件效果
-    let newStats = applyStatsChange(
-      gameState.playerStats,
-      currentRandomEvent?.effects || {}
-    );
-
-    // 检查成就
-    const updatedAchievements = checkAchievements(
-      newStats,
-      gameState.achievements
-    );
-    const unlockedAchievements = updatedAchievements.filter(
-      (ach) =>
-        ach.unlocked &&
-        !gameState.achievements.find((a) => a.id === ach.id)?.unlocked
-    );
-
-    // 应用成就奖励
-    unlockedAchievements.forEach((ach) => {
-      newStats = applyAchievementBonus(newStats, ach);
-    });
-
-    // 记录新成就
-    if (unlockedAchievements.length > 0) {
-      setNewAchievements(unlockedAchievements.map((ach) => ach.name));
-      // 播放成功音效
-      playSound('success');
-      setTimeout(() => setNewAchievements([]), 3000);
-    }
-
-    const newState: GameState = {
-      ...gameState,
-      playerStats: newStats,
-      randomEvents: [
-        ...gameState.randomEvents,
-        ...(currentRandomEvent ? [{
-          round: gameState.currentRound,
-          event: currentRandomEvent,
-        }] : []),
-      ],
-      achievements: updatedAchievements,
-    };
-
-    onUpdateState(newState);
+    // 随机事件现在由RoundManager统一处理，这里只需要关闭UI
+    // 属性变化已经在RoundManager.processRandomEvents()中应用
     setShowRandomEvent(false);
     setCurrentRandomEvent(null);
   };
@@ -211,9 +179,53 @@ export const GamePlayScreen = ({
                 </div>
 
                 {/* 属性显示 */}
-                <StatsDisplay stats={gameState.playerStats} />
+                <div className="space-y-4">
+                  <StatsDisplay stats={gameEngine ? gameEngine.getPlayer().getCurrentStats() : gameState.playerStats} />
+                  
+                  {/* 人脉关系按钮 */}
+                  <button
+                    onClick={() => setShowRelationshipPanel(!showRelationshipPanel)}
+                    className="w-full p-3 bg-stats-network-base/20 border border-stats-network-base/30 rounded-lg hover:bg-stats-network-base/30 transition-all duration-300 flex items-center justify-between group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Users className="w-5 h-5 text-stats-network-base" />
+                      <span className="font-semibold text-stats-network-base">人脉网络</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {gameEngine && (
+                        <span className="text-sm text-stats-network-base/80">
+                          {gameEngine.getPlayer().relationships.size}人
+                        </span>
+                      )}
+                      {showRelationshipPanel ? (
+                        <ChevronUp className="w-4 h-4 text-stats-network-base" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-stats-network-base" />
+                      )}
+                    </div>
+                  </button>
+                </div>
               </div>
             </div>
+
+            {/* 人脉关系面板 */}
+            {showRelationshipPanel && gameEngine && (
+              <NPCRelationshipPanel 
+                key={`relationships-${forceUpdate}`} // 使用key强制重新渲染
+                player={gameEngine.getPlayer()}
+                className="sticky top-4"
+              />
+            )}
+            
+            {/* 调试信息 */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="bg-background-dark border border-gold-primary/30 rounded-lg p-4 text-xs text-text-secondary">
+                <p>调试信息:</p>
+                <p>游戏引擎: {gameEngine ? '已加载' : '未加载'}</p>
+                <p>玩家关系数: {gameEngine ? gameEngine.getPlayer().relationships.size : 0}</p>
+                <p>当前回合: {gameState.currentRound}/{gameState.maxRounds}</p>
+              </div>
+            )}
           </div>
 
           {/* 右侧：事件区域 */}
@@ -222,7 +234,10 @@ export const GamePlayScreen = ({
               event={currentEvent}
               onSelectOption={handleSelectOption}
               selectedOption={selectedOption || undefined}
-              currentEnergy={gameState.playerStats.energy}
+              currentEnergy={gameEngine ? gameEngine.getPlayer().stats.energy : gameState.playerStats.energy}
+              npcs={gameEngine ? gameEngine.getAllNPCStates() : new Map()}
+              currentRelationships={gameEngine ? gameEngine.getPlayer().relationships : new Map()}
+              showDetailedEffects={true}
             />
 
             <div className="flex justify-end">

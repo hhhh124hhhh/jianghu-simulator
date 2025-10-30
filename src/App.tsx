@@ -16,69 +16,58 @@ import { GamePlayScreen } from './pages/GamePlayScreen';
 import { ResultScreen } from './pages/ResultScreen';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { SoundToggle } from './components/SoundToggle';
+import { GameEngine } from './core/GameEngine';
 
 function App() {
+  const [gameEngine, setGameEngine] = useState<GameEngine | null>(null);
   const [gamePhase, setGamePhase] = useState<GamePhase>('start');
   const [gameState, setGameState] = useState<GameState>(initializeGameState());
   const [hasSave, setHasSave] = useState(false);
 
   useEffect(() => {
+    // 初始化游戏引擎
+    const engine = new GameEngine();
+    setGameEngine(engine);
+    
     // 检查是否有存档
-    setHasSave(hasSavedGame());
+    setHasSave(engine.hasSavedGame());
   }, []);
 
   useEffect(() => {
     // 自动保存游戏进度
-    if (gamePhase === 'playing' && !gameState.isGameOver) {
-      saveGameState(gameState);
+    if (gameEngine && gamePhase === 'playing' && !gameState.isGameOver) {
+      gameEngine.saveGame();
     }
-  }, [gameState, gamePhase]);
+  }, [gameState, gamePhase, gameEngine]);
 
   const handleStartNewGame = () => {
+    if (!gameEngine) return;
+    
     // 清除旧存档
-    clearGameState();
-    // 初始化新游戏
-    const newState = initializeGameState();
-    setGameState(newState);
+    gameEngine.clearSave();
+    // 开始新游戏
+    gameEngine.startNewGame();
     setGamePhase('questionnaire');
+    setGameState(gameEngine.getGameState());
   };
 
   const handleContinueGame = () => {
-    const savedState = loadGameState();
-    if (savedState) {
-      setGameState(savedState);
-      if (savedState.isGameOver) {
-        setGamePhase('result');
-      } else if (savedState.questionnaire) {
-        setGamePhase('playing');
-      } else {
-        setGamePhase('questionnaire');
-      }
+    if (!gameEngine) return;
+    
+    if (gameEngine.loadGame()) {
+      const loadedState = gameEngine.getGameState();
+      setGameState(loadedState);
+      setGamePhase(gameEngine.getCurrentPhase());
     }
   };
 
   const handleQuestionnaireComplete = (answers: QuestionnaireAnswers) => {
-    // 应用问卷答案的属性加成
-    let stats = initializePlayerStats();
-
-    // 遍历问卷问题并应用效果
-    questionnaire.forEach((question) => {
-      const answer = answers[question.id as keyof QuestionnaireAnswers];
-      const option = question.options.find((opt) => opt.value === answer);
-      if (option && option.effects) {
-        stats = applyStatsChange(stats, option.effects);
-      }
-    });
-
-    // 更新游戏状态
-    const newState: GameState = {
-      ...gameState,
-      questionnaire: answers,
-      playerStats: stats,
-    };
-
-    setGameState(newState);
-    setGamePhase('playing');
+    if (!gameEngine) return;
+    
+    if (gameEngine.completeQuestionnaire(answers)) {
+      setGameState(gameEngine.getGameState());
+      setGamePhase(gameEngine.getCurrentPhase());
+    }
   };
 
   const handleUpdateGameState = (newState: GameState) => {
@@ -87,14 +76,14 @@ function App() {
 
   const handleGameOver = () => {
     setGamePhase('result');
-    // 清除自动保存
-    clearGameState();
   };
 
   const handleRestart = () => {
-    clearGameState();
-    setGamePhase('start');
-    setGameState(initializeGameState());
+    if (!gameEngine) return;
+    
+    gameEngine.restartGame();
+    setGamePhase(gameEngine.getCurrentPhase());
+    setGameState(gameEngine.getGameState());
     setHasSave(false);
   };
 
@@ -115,9 +104,10 @@ function App() {
         <QuestionnaireScreen onComplete={handleQuestionnaireComplete} />
       )}
 
-      {gamePhase === 'playing' && (
+      {gamePhase === 'playing' && gameEngine && (
         <GamePlayScreen
           gameState={gameState}
+          gameEngine={gameEngine}
           onUpdateState={handleUpdateGameState}
           onGameOver={handleGameOver}
         />
@@ -125,7 +115,11 @@ function App() {
 
       {gamePhase === 'result' && (
         <ErrorBoundary>
-          <ResultScreen gameState={gameState} onRestart={handleRestart} />
+          <ResultScreen 
+            gameState={gameState} 
+            player={gameEngine ? gameEngine.getPlayer() : undefined}
+            onRestart={handleRestart} 
+          />
         </ErrorBoundary>
       )}
     </div>

@@ -19,7 +19,10 @@
       "Bash(dir \"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\")",
       "Bash(\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --remote-debugging-port=9222 --user-data-dir=%TEMP%chrome-debug --new-window http://localhost:5173)",
       "Bash(npm run lint)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(mkdir:*)",
+      "Bash(npx tsc:*)",
+      "Bash(start:*)"
     ],
     "deny": [],
     "ask": [],

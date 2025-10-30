@@ -18,12 +18,23 @@ export interface QuestionnaireAnswers {
   talent: string; // 兴趣特长
 }
 
+// NPC关系影响
+export interface NPCRelationshipEffect {
+  npcId: string;
+  npcName: string;
+  relationshipChange: number;
+  reason?: string;
+}
+
 // 事件选项
 export interface EventOption {
   id: string;
   label: string;
   description: string;
   effects: Partial<PlayerStats>;
+  npcRelationshipEffects?: NPCRelationshipEffect[];
+  consequences?: string[]; // 长期后果提示
+  requiresConfirmation?: boolean; // 是否需要确认
 }
 
 // 游戏事件
@@ -37,7 +48,7 @@ export interface GameEvent {
 // 随机事件
 export interface RandomEvent {
   id: string;
-  type: 'battle' | 'social' | 'strategy' | 'natural' | 'mystery';
+  type: 'battle' | 'social' | 'strategy' | 'natural' | 'mystery' | 'negative';
   title: string;
   description: string;
   effects: Partial<PlayerStats>;
